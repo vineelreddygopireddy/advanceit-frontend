@@ -1,20 +1,32 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+
 function Navbar() {
+  const [open, setOpen] = useState(false);
+
   return (
     <header className="navbar">
-      <div className="brand">HireXYZ</div>
-      <nav className="nav-links">
-        <a href="#jobs">Jobs</a>
-        <a href="#about">About</a>
-        <a href="#contact">Contact</a>
+      <Link to="/" className="brand">AdvanceIt Technologies</Link>
+
+      <button
+        className="nav-toggle"
+        aria-label="Toggle menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span />
+        <span />
+        <span />
+      </button>
+
+      <nav className={`nav-links${open ? " open" : ""}`}>
+        <a href="#jobs" onClick={() => setOpen(false)}>Jobs</a>
+        <a href="#about" onClick={() => setOpen(false)}>About</a>
+        <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
+        <div className="nav-actions">
+          <Link to="/login" className="button button-outline">Log in</Link>
+        </div>
       </nav>
-      <div className="nav-actions">
-        <button type="button" className="button button-outline">
-          Log in
-        </button>
-        <button type="button" className="button button-primary">
-          Sign up
-        </button>
-      </div>
     </header>
   );
 }

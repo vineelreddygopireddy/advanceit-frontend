@@ -1,21 +1,23 @@
 const values = [
   {
-    title: "Transparency",
-    description: "Candidates always know where they stand in the process.",
-  },
-  {
-    title: "Speed",
-    description: "We move fast — from posting to placement in days, not weeks.",
-  },
-  {
-    title: "People first",
+    title: "Client-first",
     description:
-      "Every decision is made with candidates and hiring managers in mind.",
+      "We return power to the client — every solution is designed around your specific needs.",
   },
   {
-    title: "Compliance",
+    title: "Deep expertise",
     description:
-      "Timesheets, records, and data are kept secure and audit-ready.",
+      "Years of experience across IT strategy, security, staffing, and enterprise software.",
+  },
+  {
+    title: "Speed to value",
+    description:
+      "From posting to placement in days, not weeks — without compromising on fit.",
+  },
+  {
+    title: "Compliance & trust",
+    description:
+      "Timesheets, records, and data are kept secure, transparent, and audit-ready.",
   },
 ];
 

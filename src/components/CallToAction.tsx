@@ -3,7 +3,7 @@ function CallToAction() {
     <section className="cta-section">
       <div>
         <p className="eyebrow">Ready to take the next step?</p>
-        <h2>Create a free account and start applying today.</h2>
+        <h2>Work with an IT consulting firm you can trust.</h2>
       </div>
       <div className="cta-actions">
         <button type="button" className="button button-primary">

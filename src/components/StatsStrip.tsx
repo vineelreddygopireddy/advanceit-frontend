@@ -1,8 +1,8 @@
 const stats = [
-  { label: "Candidates placed", value: "148+" },
-  { label: "Open roles", value: "14" },
-  { label: "Departments", value: "6" },
-  { label: "Avg. candidate rating", value: "4.8★" },
+  { label: "Candidates placed", value: "500+" },
+  { label: "Open roles", value: "20+" },
+  { label: "Years of experience", value: "10+" },
+  { label: "Client satisfaction", value: "4.9★" },
 ];
 
 function StatsStrip() {

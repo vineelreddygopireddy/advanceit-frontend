@@ -13,15 +13,28 @@ const jobs = [
     type: "Contract",
   },
   {
-    title: "HR Business Partner",
+    title: "IT Business Analyst",
     location: "On-site",
-    department: "People ops",
+    department: "Consulting",
     type: "Full-time",
   },
   {
-    title: "Product Designer",
+    title: "Data Engineer",
     location: "Remote",
-    department: "Design",
+    department: "Big Data",
+    type: "Contract",
+    badge: "New",
+  },
+  {
+    title: "Mobile App Developer",
+    location: "Remote",
+    department: "Engineering",
+    type: "Contract",
+  },
+  {
+    title: "IT Security Consultant",
+    location: "Hybrid",
+    department: "Consulting",
     type: "Full-time",
   },
 ];
