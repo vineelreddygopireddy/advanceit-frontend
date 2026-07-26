@@ -6,7 +6,9 @@ function Navbar() {
 
   return (
     <header className="navbar">
-      <Link to="/" className="brand">AdvanceIt Technologies</Link>
+      <Link to="/" className="brand">
+        AdvanceIt Technologies
+      </Link>
 
       <button
         className="nav-toggle"
@@ -20,12 +22,22 @@ function Navbar() {
       </button>
 
       <nav className={`nav-links${open ? " open" : ""}`}>
-        <a href="#jobs" onClick={() => setOpen(false)}>Jobs</a>
-        <a href="#about" onClick={() => setOpen(false)}>About</a>
-        <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
+        <a href="#jobs" onClick={() => setOpen(false)}>
+          Jobs
+        </a>
+        <a href="#about" onClick={() => setOpen(false)}>
+          About
+        </a>
+        <a href="#contact" onClick={() => setOpen(false)}>
+          Contact
+        </a>
         <div className="nav-actions">
-          <Link to="/register" className="button button-primary">Register</Link>
-          <Link to="/login" className="button button-outline">Log in</Link>
+          <Link to="/register" className="button button-primary">
+            Register
+          </Link>
+          <Link to="/login" className="button button-outline">
+            Log in
+          </Link>
         </div>
       </nav>
     </header>

@@ -93,7 +93,12 @@ function RegisterPage() {
     e.preventDefault();
     setError("");
 
-    if (!details.firstName || !details.lastName || !details.password || !details.role) {
+    if (
+      !details.firstName ||
+      !details.lastName ||
+      !details.password ||
+      !details.role
+    ) {
       setError("First name, last name, password, and role are required.");
       return;
     }
@@ -167,7 +172,8 @@ function RegisterPage() {
             </div>
 
             <p className="field-hint">
-              Please make sure to enter the email that admin used to send the invite.
+              Please make sure to enter the email that admin used to send the
+              invite.
             </p>
 
             {error ? <p className="auth-error">{error}</p> : null}
@@ -254,7 +260,9 @@ function RegisterPage() {
                 <select
                   id="visaStatus"
                   value={details.visaStatus}
-                  onChange={(e) => update("visaStatus", e.target.value as VisaStatus)}
+                  onChange={(e) =>
+                    update("visaStatus", e.target.value as VisaStatus)
+                  }
                 >
                   {VISA_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
