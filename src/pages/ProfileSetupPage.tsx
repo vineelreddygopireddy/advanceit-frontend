@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ApiError, employeesApi, getAuthToken } from "../api/api";
 import "../styles/auth.css";
 
 type VisaStatus =
@@ -12,7 +13,7 @@ type VisaStatus =
   | "TN"
   | "OTHER";
 
-type CandidateStatus = "AVAILABLE" | "PLACED" | "NOT_AVAILABLE" | "TRAINING";
+type EmployeeStatus = "AVAILABLE" | "PLACED" | "NOT_AVAILABLE" | "TRAINING";
 
 interface ProfileForm {
   firstName: string;
@@ -24,7 +25,7 @@ interface ProfileForm {
   department: string;
   location: string;
   phoneNumber: string;
-  candidateStatus: CandidateStatus;
+  employeeStatus: EmployeeStatus;
 }
 
 const VISA_OPTIONS: { value: VisaStatus; label: string }[] = [
@@ -38,7 +39,7 @@ const VISA_OPTIONS: { value: VisaStatus; label: string }[] = [
   { value: "OTHER", label: "Other" },
 ];
 
-const CANDIDATE_STATUS_OPTIONS: { value: CandidateStatus; label: string }[] = [
+const EMPLOYEE_STATUS_OPTIONS: { value: EmployeeStatus; label: string }[] = [
   { value: "AVAILABLE", label: "Available" },
   { value: "PLACED", label: "Placed" },
   { value: "NOT_AVAILABLE", label: "Not Available" },
@@ -55,33 +56,67 @@ const INITIAL: ProfileForm = {
   department: "",
   location: "",
   phoneNumber: "",
-  candidateStatus: "AVAILABLE",
+  employeeStatus: "AVAILABLE",
 };
 
 function ProfileSetupPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState<ProfileForm>(INITIAL);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!getAuthToken()) {
+      setError("Please log in first before creating your profile.");
+      navigate("/login");
+    }
+  }, [navigate]);
 
   function update(field: keyof ProfileForm, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!form.firstName || !form.lastName || !form.role) {
       setError("First name, last name, and role are required.");
       return;
     }
-    // TODO: POST to backend API
-    console.log("Profile payload:", {
-      ...form,
-      yearsOfExperience: form.yearsOfExperience
-        ? parseInt(form.yearsOfExperience, 10)
-        : null,
-    });
-    navigate("/dashboard");
+
+    try {
+      setIsSubmitting(true);
+
+      if (!getAuthToken()) {
+        throw new Error("Missing login token. Please sign in again.");
+      }
+
+      await employeesApi.create({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        role: form.role,
+        skills: form.skills || undefined,
+        yearsOfExperience: form.yearsOfExperience
+          ? parseInt(form.yearsOfExperience, 10)
+          : undefined,
+        visaStatus: form.visaStatus,
+        department: form.department || undefined,
+        location: form.location || undefined,
+        phoneNumber: form.phoneNumber || undefined,
+        employeeStatus: form.employeeStatus,
+      });
+      navigate("/dashboard");
+    } catch (err) {
+      const message =
+        err instanceof ApiError && err.status === 403
+          ? "Not authorized to create profile. Please login again."
+          : err instanceof Error
+            ? err.message
+            : "Unable to save profile";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -221,15 +256,15 @@ function ProfileSetupPage() {
               />
             </div>
             <div className="field">
-              <label htmlFor="candidateStatus">Candidate status</label>
+              <label htmlFor="employeeStatus">Employee status</label>
               <select
-                id="candidateStatus"
-                value={form.candidateStatus}
+                id="employeeStatus"
+                value={form.employeeStatus}
                 onChange={(e) =>
-                  update("candidateStatus", e.target.value as CandidateStatus)
+                  update("employeeStatus", e.target.value as EmployeeStatus)
                 }
               >
-                {CANDIDATE_STATUS_OPTIONS.map((o) => (
+                {EMPLOYEE_STATUS_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
@@ -241,7 +276,7 @@ function ProfileSetupPage() {
           {error && <p className="auth-error">{error}</p>}
 
           <button type="submit" className="auth-submit">
-            Save &amp; continue →
+            {isSubmitting ? "Saving..." : "Save & continue →"}
           </button>
         </form>
       </div>

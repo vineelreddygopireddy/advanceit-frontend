@@ -24,6 +24,7 @@ function Navbar() {
         <a href="#about" onClick={() => setOpen(false)}>About</a>
         <a href="#contact" onClick={() => setOpen(false)}>Contact</a>
         <div className="nav-actions">
+          <Link to="/register" className="button button-primary">Register</Link>
           <Link to="/login" className="button button-outline">Log in</Link>
         </div>
       </nav>

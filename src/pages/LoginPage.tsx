@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { ApiError, authApi, employeesApi } from "../api/api";
 import "../styles/auth.css";
 
 type Mode = "login" | "forgot";
@@ -9,29 +10,75 @@ function LoginPage() {
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!email || !password) {
       setError("Please enter your email and password.");
       return;
     }
-    // TODO: replace with real auth call — navigate to profile-setup on first login, else /dashboard
-    navigate("/profile-setup");
+
+    try {
+      setIsSubmitting(true);
+      const auth = await authApi.login({ email, password });
+
+      if (auth.user?.role?.toUpperCase().includes("ADMIN")) {
+        navigate("/admin/employees");
+        return;
+      }
+
+      // If profile exists, go to dashboard. Otherwise complete profile first.
+      try {
+        await employeesApi.getMyProfile();
+        navigate("/dashboard");
+      } catch (profileErr) {
+        if (profileErr instanceof ApiError && profileErr.status === 404) {
+          navigate("/profile-setup");
+        } else {
+          const message =
+            profileErr instanceof Error
+              ? profileErr.message
+              : "Session is not authorized. Please login again.";
+          setError(message);
+        }
+      }
+    } catch (err) {
+      const message =
+        err instanceof ApiError && err.status === 403
+          ? "Access denied. If you are newly invited, use Register first from the home page."
+          : err instanceof Error
+            ? err.message
+            : "Login failed";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
-  function handleForgot(e: React.FormEvent) {
+  async function handleForgot(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-    if (!email) {
-      setError("Please enter your email address.");
+    if (!email || !newPassword) {
+      setError("Please enter your email and new password.");
       return;
     }
-    // TODO: replace with real API call
-    setForgotSent(true);
+
+    try {
+      setIsSubmitting(true);
+      await authApi.forgotPassword({ email, newPassword });
+      setForgotSent(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Password reset failed";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -88,8 +135,12 @@ function LoginPage() {
               {error && <p className="auth-error">{error}</p>}
 
               <button type="submit" className="auth-submit">
-                Sign in
+                {isSubmitting ? "Signing in..." : "Sign in"}
               </button>
+
+              <p className="auth-switch-text">
+                New employee? <Link to="/register">Register</Link>
+              </p>
             </form>
           </>
         ) : (
@@ -118,10 +169,22 @@ function LoginPage() {
                   />
                 </div>
 
+                <div className="field">
+                  <label htmlFor="forgot-new-password">New password</label>
+                  <input
+                    id="forgot-new-password"
+                    type="password"
+                    placeholder="Enter new password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+
                 {error && <p className="auth-error">{error}</p>}
 
                 <button type="submit" className="auth-submit">
-                  Send reset link
+                  {isSubmitting ? "Submitting..." : "Reset password"}
                 </button>
               </form>
             )}
@@ -132,6 +195,7 @@ function LoginPage() {
               onClick={() => {
                 setMode("login");
                 setForgotSent(false);
+                setNewPassword("");
                 setError("");
               }}
             >

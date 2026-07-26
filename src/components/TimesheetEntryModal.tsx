@@ -9,19 +9,42 @@ import {
   toISODate,
   getWeekEnd,
 } from "../utils/timesheetUtils";
-import { MOCK_PROJECT } from "../utils/timesheetUtils";
+
+interface WeeklyEntryPayload {
+  status: "SAVED" | "PENDING";
+  weekStartDate: string;
+  weekEndDate: string;
+  days: WeeklyTimesheet["days"];
+  totalST: number;
+  totalOT: number;
+  totalDT: number;
+  totalOthers: number;
+  totalNB: number;
+}
 
 interface Props {
   weekStart: Date;
   onClose: () => void;
-  onSave: (sheet: WeeklyTimesheet) => void;
+  onSave: (payload: WeeklyEntryPayload) => Promise<void>;
+  projectName: string;
+  clientName: string;
+  supervisor: string;
 }
 
 type HoursCol = (typeof HOURS_COLS)[number];
 
-function TimesheetEntryModal({ weekStart, onClose, onSave }: Props) {
+function TimesheetEntryModal({
+  weekStart,
+  onClose,
+  onSave,
+  projectName,
+  clientName,
+  supervisor,
+}: Props) {
   const weekEnd = getWeekEnd(weekStart);
   const [days, setDays] = useState(emptyDays);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const totals = calcTotals(days);
 
   function setHour(day: string, col: HoursCol, raw: string) {
@@ -32,23 +55,29 @@ function TimesheetEntryModal({ weekStart, onClose, onSave }: Props) {
     }));
   }
 
-  function handleSave(status: "SAVED" | "PENDING") {
-    const id = `CTZTS${String(Date.now()).slice(-6)}`;
-    const sheet: WeeklyTimesheet = {
-      id,
-      weekStartDate: toISODate(weekStart),
-      weekEndDate: toISODate(weekEnd),
-      status,
-      revision: 0,
-      days,
-      totalST: totals.st,
-      totalOT: totals.ot,
-      totalDT: totals.dt,
-      totalOthers: totals.others,
-      totalNB: 0,
-    };
-    onSave(sheet);
-    onClose();
+  async function handleSave(status: "SAVED" | "PENDING") {
+    setSaveError("");
+    try {
+      setIsSaving(true);
+      await onSave({
+        status,
+        weekStartDate: toISODate(weekStart),
+        weekEndDate: toISODate(weekEnd),
+        days,
+        totalST: totals.st,
+        totalOT: totals.ot,
+        totalDT: totals.dt,
+        totalOthers: totals.others,
+        totalNB: 0,
+      });
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to save timesheet";
+      setSaveError(message);
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -74,10 +103,10 @@ function TimesheetEntryModal({ weekStart, onClose, onSave }: Props) {
 
         <div className="modal-project-banner">
           <span>
-            <strong>{MOCK_PROJECT.name}</strong> · {MOCK_PROJECT.client}
+            <strong>{projectName}</strong> · {clientName}
           </span>
           <span>
-            Supervisor: <strong>{MOCK_PROJECT.supervisor}</strong>
+            Supervisor: <strong>{supervisor}</strong>
           </span>
         </div>
 
@@ -119,19 +148,26 @@ function TimesheetEntryModal({ weekStart, onClose, onSave }: Props) {
         </div>
 
         <div className="modal-actions">
+          {saveError ? (
+            <p style={{ color: "#c53030", margin: 0, width: "100%" }}>
+              {saveError}
+            </p>
+          ) : null}
           <button
             type="button"
             className="button button-outline"
             onClick={() => handleSave("SAVED")}
+            disabled={isSaving}
           >
-            Save draft
+            {isSaving ? "Saving..." : "Save draft"}
           </button>
           <button
             type="button"
             className="button button-primary"
             onClick={() => handleSave("PENDING")}
+            disabled={isSaving}
           >
-            Submit for approval
+            {isSaving ? "Submitting..." : "Submit for approval"}
           </button>
         </div>
       </div>

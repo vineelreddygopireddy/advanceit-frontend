@@ -8,8 +8,11 @@ import JobListings from "./components/JobListings";
 import CallToAction from "./components/CallToAction";
 import Footer from "./components/Footer";
 import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
 import ProfileSetupPage from "./pages/ProfileSetupPage";
 import DashboardPage from "./pages/DashboardPage";
+import AdminEmployeesPage from "./pages/AdminEmployeesPage";
+import AdminProjectsPage from "./pages/AdminProjectsPage";
 import "./App.css";
 
 function HomePage() {
@@ -34,8 +37,11 @@ function App() {
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route path="/profile-setup" element={<ProfileSetupPage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
+      <Route path="/admin/employees" element={<AdminEmployeesPage />} />
+      <Route path="/admin/projects" element={<AdminProjectsPage />} />
     </Routes>
   );
 }

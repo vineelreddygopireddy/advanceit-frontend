@@ -1,9 +1,15 @@
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { authApi, employeesApi, projectsApi, timesheetsApi } from "../api/api";
+import type { ProjectResponse, TimesheetResponse } from "../api/api";
 import type { WeeklyTimesheet } from "../types/timesheet";
 import {
+  DAYS,
+  getWeekEnd,
   formatDate,
   getWeekStart,
+  toISODate,
+  emptyDays,
   MOCK_TIMESHEETS,
   MOCK_PROJECT,
 } from "../utils/timesheetUtils";
@@ -25,16 +31,143 @@ function badgeClass(status: WeeklyTimesheet["status"]) {
 const AUG_1 = new Date("2026-08-01");
 const FIRST_WEEK = getWeekStart(AUG_1);
 
+type WeeklyDetails = {
+  weekStartDate?: string;
+  weekEndDate?: string;
+  days?: WeeklyTimesheet["days"];
+  totals?: {
+    st?: number;
+    ot?: number;
+    dt?: number;
+    others?: number;
+    nb?: number;
+  };
+};
+
+function mapTimesheetResponse(item: TimesheetResponse): WeeklyTimesheet {
+  const details = (item.details ?? {}) as WeeklyDetails;
+  const entry = new Date(item.entryDate);
+  const inferredWeekStart = getWeekStart(entry);
+  const weekStartDate = details.weekStartDate ?? toISODate(inferredWeekStart);
+  const weekEndDate =
+    details.weekEndDate ?? toISODate(getWeekEnd(inferredWeekStart));
+  const days = details.days ?? emptyDays();
+
+  const totalST =
+    details.totals?.st ??
+    DAYS.reduce((sum, day) => sum + (days[day]?.st ?? 0), 0);
+  const totalOT =
+    details.totals?.ot ??
+    DAYS.reduce((sum, day) => sum + (days[day]?.ot ?? 0), 0);
+  const totalDT =
+    details.totals?.dt ??
+    DAYS.reduce((sum, day) => sum + (days[day]?.dt ?? 0), 0);
+  const totalOthers =
+    details.totals?.others ??
+    DAYS.reduce((sum, day) => sum + (days[day]?.others ?? 0), 0);
+  const totalNB = details.totals?.nb ?? 0;
+
+  return {
+    id: item.id,
+    weekStartDate,
+    weekEndDate,
+    status: (item.status as WeeklyTimesheet["status"]) ?? "SAVED",
+    revision: 0,
+    days,
+    totalST,
+    totalOT,
+    totalDT,
+    totalOthers,
+    totalNB,
+  };
+}
+
 function DashboardPage() {
-  const [sheets, setSheets] = useState<WeeklyTimesheet[]>(MOCK_TIMESHEETS);
+  const navigate = useNavigate();
+  const [sheets, setSheets] = useState<WeeklyTimesheet[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [activeWeek, setActiveWeek] = useState<Date>(FIRST_WEEK);
+  const [employeeId, setEmployeeId] = useState<string | null>(null);
+  const [project, setProject] = useState<ProjectResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [apiError, setApiError] = useState<string>("");
 
   // Filters
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const [searchText, setSearchText] = useState("");
   const [fromDate, setFromDate] = useState("2026-05-16");
   const [toDate, setToDate] = useState("2026-10-11");
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+  async function loadAllTimesheets(currentEmployeeId: string) {
+    const rows = await timesheetsApi.getForEmployee(currentEmployeeId);
+    const mapped = rows
+      .map(mapTimesheetResponse)
+      .sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate));
+    setSheets(mapped);
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDashboard() {
+      try {
+        setIsLoading(true);
+        setApiError("");
+
+        const profile = await employeesApi.getMyProfile();
+        if (cancelled) {
+          return;
+        }
+        setEmployeeId(profile.id);
+
+        const [projects, timesheets] = await Promise.all([
+          projectsApi.getAll(),
+          timesheetsApi.getForEmployee(profile.id),
+        ]);
+
+        if (cancelled) {
+          return;
+        }
+
+        const assignedProject =
+          projects.find((p) =>
+            p.assignments?.some((a) => a.employeeId === profile.id),
+          ) ??
+          projects[0] ??
+          null;
+
+        setProject(assignedProject);
+        setSheets(
+          timesheets
+            .map(mapTimesheetResponse)
+            .sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate)),
+        );
+      } catch (err) {
+        if (cancelled) {
+          return;
+        }
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Unable to load dashboard data from API";
+        setApiError(message);
+
+        // Keep UI usable when backend is unavailable.
+        setSheets(MOCK_TIMESHEETS);
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const filtered = useMemo(() => {
     return sheets.filter((s) => {
@@ -47,8 +180,77 @@ function DashboardPage() {
     });
   }, [sheets, statusFilter, searchText, fromDate, toDate]);
 
-  function handleSave(sheet: WeeklyTimesheet) {
-    setSheets((prev) => [sheet, ...prev]);
+  async function handleSave(payload: {
+    status: "SAVED" | "PENDING";
+    weekStartDate: string;
+    weekEndDate: string;
+    days: WeeklyTimesheet["days"];
+    totalST: number;
+    totalOT: number;
+    totalDT: number;
+    totalOthers: number;
+    totalNB: number;
+  }) {
+    if (!employeeId || !project) {
+      throw new Error("Employee profile or project assignment is missing");
+    }
+
+    const created = await timesheetsApi.create({
+      employeeId,
+      projectId: project.id,
+      entryDate: payload.weekStartDate,
+      status: payload.status,
+      details: {
+        weekStartDate: payload.weekStartDate,
+        weekEndDate: payload.weekEndDate,
+        days: payload.days,
+        totals: {
+          st: payload.totalST,
+          ot: payload.totalOT,
+          dt: payload.totalDT,
+          others: payload.totalOthers,
+          nb: payload.totalNB,
+        },
+      },
+    });
+
+    setSheets((prev) => [mapTimesheetResponse(created), ...prev]);
+  }
+
+  async function handleApplyDateRange() {
+    if (!employeeId) {
+      return;
+    }
+
+    try {
+      setApiError("");
+      const rows = await timesheetsApi.getForEmployeeDateRange(
+        employeeId,
+        fromDate,
+        toDate,
+      );
+      setSheets(
+        rows
+          .map(mapTimesheetResponse)
+          .sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate)),
+      );
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Unable to filter timesheets";
+      setApiError(message);
+    }
+  }
+
+  async function handleLogout() {
+    try {
+      setIsLoggingOut(true);
+      await authApi.logout();
+    } catch {
+      // Session is cleared in authApi.logout finally block.
+    } finally {
+      setIsLoggingOut(false);
+      navigate("/login");
+    }
   }
 
   const approved = sheets.filter((s) => s.status === "APPROVED");
@@ -66,13 +268,17 @@ function DashboardPage() {
           <a href="#project">My Project</a>
         </nav>
         <div className="nav-actions">
-          <Link
-            to="/"
+          <button
+            type="button"
             className="button button-outline"
             style={{ fontSize: "0.88rem", padding: "10px 18px" }}
+            onClick={() => {
+              void handleLogout();
+            }}
+            disabled={isLoggingOut}
           >
-            Log out
-          </Link>
+            {isLoggingOut ? "Logging out..." : "Log out"}
+          </button>
         </div>
       </header>
 
@@ -123,11 +329,13 @@ function DashboardPage() {
         <div className="project-card" id="project">
           <div className="project-card-header">
             <div>
-              <h3>{MOCK_PROJECT.name}</h3>
-              <p>Client: {MOCK_PROJECT.client}</p>
+              <h3>{project?.projectName ?? MOCK_PROJECT.name}</h3>
+              <p>Client: {project?.clientName ?? MOCK_PROJECT.client}</p>
             </div>
             <div className="project-meta">
-              <span className="meta-chip">{MOCK_PROJECT.status}</span>
+              <span className="meta-chip">
+                {project ? "ACTIVE" : MOCK_PROJECT.status}
+              </span>
               <span className="meta-chip">
                 {MOCK_PROJECT.timesheetFrequency}
               </span>
@@ -136,7 +344,7 @@ function DashboardPage() {
           <div className="project-detail-grid">
             <div className="project-detail-item">
               <p className="label">Project ID</p>
-              <p className="value">{MOCK_PROJECT.id}</p>
+              <p className="value">{project?.id ?? MOCK_PROJECT.id}</p>
             </div>
             <div className="project-detail-item">
               <p className="label">Supervisor</p>
@@ -152,14 +360,14 @@ function DashboardPage() {
             </div>
             <div className="project-detail-item">
               <p className="label">Start Date</p>
-              <p className="value">{formatDate(MOCK_PROJECT.startDate)}</p>
+              <p className="value">
+                {formatDate(project?.startDate ?? MOCK_PROJECT.startDate)}
+              </p>
             </div>
             <div className="project-detail-item">
               <p className="label">End Date</p>
               <p className="value">
-                {MOCK_PROJECT.endDate
-                  ? formatDate(MOCK_PROJECT.endDate)
-                  : "Ongoing"}
+                {project?.endDate ? formatDate(project.endDate) : "Ongoing"}
               </p>
             </div>
           </div>
@@ -183,6 +391,16 @@ function DashboardPage() {
             <span className="ts-item-count">{filtered.length} Items Found</span>
           </div>
 
+          {isLoading && (
+            <p style={{ color: "var(--text)", fontSize: "0.9rem" }}>
+              Loading timesheets...
+            </p>
+          )}
+
+          {apiError && (
+            <p style={{ color: "#c53030", fontSize: "0.9rem" }}>{apiError}</p>
+          )}
+
           {/* Date filters */}
           <div className="ts-filters">
             <input
@@ -201,7 +419,9 @@ function DashboardPage() {
             <button
               className="button button-primary"
               style={{ padding: "10px 20px", fontSize: "0.9rem" }}
-              onClick={() => {}}
+              onClick={() => {
+                void handleApplyDateRange();
+              }}
             >
               Apply Filters
             </button>
@@ -286,8 +506,14 @@ function DashboardPage() {
                         <button className="ts-id-link">{sheet.id}</button>
                       </td>
                       <td>{sheet.revision}</td>
-                      <td>{MOCK_PROJECT.id}…</td>
-                      <td>{MOCK_PROJECT.client.slice(0, 12)}…</td>
+                      <td>{project?.clientId ?? MOCK_PROJECT.id}…</td>
+                      <td>
+                        {(project?.clientName ?? MOCK_PROJECT.client).slice(
+                          0,
+                          12,
+                        )}
+                        …
+                      </td>
                       <td>{MOCK_PROJECT.supervisor}</td>
                       <td>{formatDate(sheet.weekStartDate)}</td>
                       <td>{formatDate(sheet.weekEndDate)}</td>
@@ -319,6 +545,9 @@ function DashboardPage() {
                     setToDate("2026-10-11");
                     setStatusFilter("All");
                     setSearchText("");
+                    if (employeeId) {
+                      void loadAllTimesheets(employeeId);
+                    }
                   }}
                 >
                   Clear Filters
@@ -337,6 +566,9 @@ function DashboardPage() {
           weekStart={activeWeek}
           onClose={() => setShowModal(false)}
           onSave={handleSave}
+          projectName={project?.projectName ?? MOCK_PROJECT.name}
+          clientName={project?.clientName ?? MOCK_PROJECT.client}
+          supervisor={MOCK_PROJECT.supervisor}
         />
       )}
     </div>

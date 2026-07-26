@@ -1,5 +1,5 @@
 const stats = [
-  { label: "Candidates placed", value: "500+" },
+  { label: "Employees placed", value: "500+" },
   { label: "Open roles", value: "20+" },
   { label: "Years of experience", value: "10+" },
   { label: "Client satisfaction", value: "4.9★" },
